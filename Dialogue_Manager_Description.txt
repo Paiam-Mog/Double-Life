@@ -1,0 +1,360 @@
+Dialogue Manager System:
+
+Description:
+This system was a feature I implemented in the game to allow for us to have a choice based dialogue system that was easily iterable through the inspector. The Dialogue Manager uses a Scriptable Object called a Conversation Object which acts as a container for a list of Dialogue Lines in a conversation. Each Dialogue Line specifies the text to be placed on the screen, the name of the speaker, a sprite profile to display for the speaker, and whether or not the profile is on the left or right side of the screen. The Dialogue Manager reads in the Dialogue Lines and displays the appropriate text and updates the Dialogue UI based on settings for the Dialogue Line. Once all Dialogue Lines had been read through, the Conversation Object can specify a list of Conversation Objects to choose between as the next Conversation. The Dialogue Manager checks this list and if it is empty, it ends the dialogue, otherwise it has the player choose which Conversation to advance to based on a dialogue choice (currently the system only supports choosing between 2 Conversation Objects). Once a choice is made, the choosen Conversation begins until the Dialogue ends.
+
+
+Coding Features and Strategies Utilized in this system:
+ - Using Scriptable Objects to store game data to allow for easy testing and fast iteraction cycles as the overall system can be tested in isolation from the rest of the game
+ 
+
+Code Snippets (2 scripts featured):
+
+DialogueManager.cs:
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+using System;
+
+public class DialogueManager : MonoBehaviour
+{
+
+    #region Public Variables
+    [Header("Dialogue UI")]
+    public GameObject DialogueBackground;
+    public GameObject DialogueBackdrop;
+    public Text DialogueText;
+    public GameObject CharacterProfileLeft;
+    public GameObject CharacterProfileRight;
+
+    /*[System.Serializable]
+    public struct DialogueLine
+    {
+        public string charName;
+        public Sprite CharProfile;
+        public bool useLeftProfile;
+        public string dialogueLine;
+    }
+    [System.Serializable]
+    public struct Conversation
+    {
+        public int stageNum;
+        public int chapterNum;
+        public List<DialogueLine> charConvo;
+    }
+    public List<Conversation> Conversations = new List<Conversation>();*/
+    public float charactersPerSecond = 0.5f;
+
+    [Header("Conversation Values")]
+    public Conversation startConvo;
+    #endregion
+
+    #region Private Variables
+    private bool InConvo = false;
+    private bool AdvanceText = false;
+    private Conversation currConvo;
+    private bool choicesAvail = false;
+    #endregion
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        //Reset the dialogue
+        DisableConvo();
+
+        currConvo = startConvo;
+
+        PlayConversation(currConvo);
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        //Process only if we are in a conversation
+        if(InConvo)
+        {            
+            //If a choice is available to make, we wait until a choice is made
+            if(choicesAvail)
+            {
+                choicesAvail = false;
+                if(Input.GetKeyDown(KeyCode.Z))
+                {
+                    PlayConversation(currConvo.GetNextConvos()[0]);
+                }
+                else if(Input.GetKeyDown(KeyCode.C))
+                {
+                    PlayConversation(currConvo.GetNextConvos()[1]);
+                }
+                else
+                {
+                    choicesAvail = true;
+                }
+            }
+            //If no choice is available, then we advance text like normal
+            else
+            {
+                //Checks if we have already advanced text
+                if (!AdvanceText)
+                {
+                    //If the player clicks or presses psace then it sets advance text input to true
+                    if (Input.GetKeyDown(KeyCode.Mouse0) || Input.GetKeyDown(KeyCode.Space))
+                    {
+                        AdvanceText = true;
+                    }
+                }
+            }
+        }
+    }
+
+    public bool ConversationActive()
+    {
+        return InConvo;
+    }
+
+    public void PlayConversation(Conversation convo)
+    {
+        InConvo = true;
+        DialogueBackground.SetActive(true);
+        DialogueBackdrop.SetActive(true);
+        DialogueText.gameObject.SetActive(true);
+
+        StartCoroutine(PlayConvo(convo));
+    }
+
+    IEnumerator PlayConvo(Conversation convo)
+    {
+        for(int i = 0; i < convo.GetDailogue().Count; i++)
+        {
+            Conversation.DialogueLine dialogueInfo = convo.GetDailogue()[i];
+            DialogueBackground.GetComponent<Image>().sprite = dialogueInfo.ConvoBackdrop;
+            //Check if we are using the left profile
+            if(dialogueInfo.useLeftProfile)
+            {
+                if(CharacterProfileRight.activeSelf)
+                {
+                    StartCoroutine(FadeOutProfile(CharacterProfileRight.GetComponent<Image>(), 5.0f));
+                }
+
+                //Check if the left profile is inactive
+                if(!CharacterProfileLeft.activeSelf)
+                {
+                    //Set the profile to active, set the character profile and fade it in
+                    CharacterProfileLeft.SetActive(true);
+                    CharacterProfileLeft.GetComponent<Image>().sprite = dialogueInfo.CharProfile;
+                    yield return StartCoroutine(FadeInProfile(CharacterProfileLeft.GetComponent<Image>(), 5.0f));
+                }
+                //Runs if the profile is active and the old sprite isn't the same as the new one
+                else if(CharacterProfileLeft.GetComponent<Image>().sprite != dialogueInfo.CharProfile)
+                {
+                    //Fade out the old profile, set the new profile and fade it in
+                    yield return StartCoroutine(FadeOutProfile(CharacterProfileLeft.GetComponent<Image>(), 5.0f));
+                    CharacterProfileLeft.GetComponent<Image>().sprite = dialogueInfo.CharProfile;
+                    yield return StartCoroutine(FadeInProfile(CharacterProfileLeft.GetComponent<Image>(), 5.0f));
+                }
+            }
+            else
+            {
+                if (CharacterProfileLeft.activeSelf)
+                {
+                    StartCoroutine(FadeOutProfile(CharacterProfileLeft.GetComponent<Image>(), 5.0f));
+                }
+
+                //Check if the right profile is inactive
+                if (!CharacterProfileRight.activeSelf)
+                {
+                    //Set the profile to active, set the character profile and fade it in
+                    CharacterProfileRight.SetActive(true);
+                    CharacterProfileRight.GetComponent<Image>().sprite = dialogueInfo.CharProfile;
+                    yield return StartCoroutine(FadeInProfile(CharacterProfileRight.GetComponent<Image>(), 5.0f));
+                }
+                //Runs if the profile is active and the old sprite isn't the same as the new one
+                else if (CharacterProfileRight.GetComponent<Image>().sprite != dialogueInfo.CharProfile)
+                {
+                    //Fade out the old profile, set the new profile and fade it in
+                    yield return StartCoroutine(FadeOutProfile(CharacterProfileRight.GetComponent<Image>(), 5.0f));
+                    CharacterProfileRight.GetComponent<Image>().sprite = dialogueInfo.CharProfile;
+                    yield return StartCoroutine(FadeInProfile(CharacterProfileRight.GetComponent<Image>(), 5.0f));
+                }
+            }
+
+            //Prints out the dialogue text
+            yield return StartCoroutine(PrintDialogue(dialogueInfo.charName + ": " + dialogueInfo.dialogueLine));
+
+            //Waits until player advances text to move on to the enxt line of dialogue
+            while(!AdvanceText)
+            {
+                yield return null;
+            }
+
+            AdvanceText = false;
+        }
+
+        //If choices available, don't fade out the dialogue UI
+        if (convo.GetNextConvos().Length > 0)
+        {
+            choicesAvail = true;
+            yield break;
+        }
+
+        //Fade out the profile images if they are active
+        if (CharacterProfileLeft.activeSelf)
+        {
+            StartCoroutine(FadeOutProfile(CharacterProfileLeft.GetComponent<Image>(), 10.0f));
+        }
+        if(CharacterProfileRight.activeSelf)
+        {
+            StartCoroutine(FadeOutProfile(CharacterProfileRight.GetComponent<Image>(), 10.0f));
+        }
+
+        //Fade out the background (the profiles and background should fade at the same time)
+        yield return StartCoroutine(FadeOutProfile(DialogueBackground.GetComponent<Image>(), 10.0f));
+
+        
+
+        //Then disable the conversation
+        DisableConvo();
+        InConvo = false;
+        yield break;
+    }
+
+    IEnumerator FadeInProfile(Image profile, float fadeSpeed)
+    {
+        //Set the alpha to 0 (not visible)
+        Color color = profile.color;
+        color.a = 0.0f;
+        profile.color = color;
+
+        //Updates the the alpha over time based on the fade Speed
+        for(float i = 0.0f; i <= 1.0f; i += (Time.deltaTime * fadeSpeed))
+        {
+            color = profile.color;
+            color.a = i;
+            profile.color = color;
+
+            //If the player indicated to advance
+            if(AdvanceText)
+            {
+                break;
+            }
+
+            yield return null;
+        }
+
+        //Set the alpha to 1 (fully visible)
+        color = profile.color;
+        color.a = 1.0f;
+        profile.color = color;
+
+        yield break;
+    }
+
+    IEnumerator FadeOutProfile(Image profile, float fadeSpeed)
+    {
+        //Set the alpha to 1 (full visible)
+        Color color = profile.color;
+        color.a = 1.0f;
+        profile.color = color;
+
+        //Updates the the alpha over time based on the fade Speed
+        for (float i = 1.0f; i >= 0.0f; i -= (Time.deltaTime * fadeSpeed))
+        {
+            color = profile.color;
+            color.a = i;
+            profile.color = color;
+
+            //If the player indicated to advance
+            if (AdvanceText)
+            {
+                break;
+            }
+
+            yield return null;
+        }
+
+        //Set the alpha to 0 (not visible)
+        color = profile.color;
+        color.a = 0.0f;
+        profile.color = color;
+
+        profile.gameObject.SetActive(false);
+
+        yield break;
+    }
+
+    IEnumerator PrintDialogue(string dialogue)
+    {
+        int charIndex = 0;
+        string currDisplayedText = "";
+
+        DialogueText.text = currDisplayedText;
+
+        while(charIndex < dialogue.Length)
+        {
+            currDisplayedText += dialogue[charIndex];
+            DialogueText.text = currDisplayedText;
+            charIndex++;
+
+            if (AdvanceText)
+            {
+                DialogueText.text = dialogue;
+                break;
+            }
+
+            yield return new WaitForSeconds(1.0f / charactersPerSecond);
+        }
+
+        AdvanceText = false;
+        yield break;
+    }
+
+
+    public void DisableConvo()
+    {
+        DialogueBackground.SetActive(false);
+        DialogueBackdrop.SetActive(false);
+        DialogueText.gameObject.SetActive(false);
+        CharacterProfileLeft.SetActive(false);
+        CharacterProfileRight.SetActive(false);
+    }
+
+}
+
+Conversation.cs:
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+[CreateAssetMenu(menuName = "Conversation")]
+public class Conversation : ScriptableObject
+{
+    [System.Serializable]
+    public struct DialogueLine
+    {
+        public string charName;
+        public Sprite CharProfile;
+        public Sprite ConvoBackdrop;
+        public bool useLeftProfile;
+        [TextArea(10, 14)] public string dialogueLine;
+    }
+    
+    [SerializeField] string ConversationName;
+    [SerializeField] List<DialogueLine> Dailogue;
+    [SerializeField] Conversation[] nextConvos;
+
+    public string GetConvoName()
+    {
+        return ConversationName;
+    }
+
+    public List<DialogueLine> GetDailogue()
+    {
+        return Dailogue;
+    }
+
+    public Conversation[] GetNextConvos()
+    {
+        return nextConvos;
+    }
+}
+
