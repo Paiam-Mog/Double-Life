@@ -8,6 +8,6 @@ I worked as a supporting engineer on this project as well as a design collaborat
 
 # Implemented Systems and Features 
 Some of the systems and features that I have worked on or implemented during my time include:
- * Dialogue system that utilizes Scriptable Object assets stored in the project to allow for writers to quickly iterate on the dialogue without having to touch any code
+ * Dialogue Manager system that utilizes Scriptable Object assets stored in the project to allow for writers to quickly iterate on the dialogue without having to touch any code
  
 A build of the game can be downloaded on itch.io at this link: https://alextomkow.itch.io/double-life
